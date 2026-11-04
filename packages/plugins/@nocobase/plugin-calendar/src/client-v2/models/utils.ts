@@ -76,12 +76,29 @@ export const formatDate = (date: dayjs.Dayjs) => {
   return date.format('YYYY-MM-DDTHH:mm:ss.SSSZ');
 };
 
+export const CALENDAR_RECURRENCE_FIELD = 'cron';
+
+export type CalendarRangeFilterOptions = {
+  /**
+   * Field holding the repeat rule of recurring events (the calendar template's `cron` field).
+   * When set, recurring records that started on or before the end of the visible range are
+   * always returned, because their stored dates only describe the first occurrence and the
+   * remaining occurrences are expanded on the client.
+   */
+  recurrenceField?: string;
+};
+
+export const getCalendarRecurrenceField = (collection?: { getField?: (name: string) => unknown }) => {
+  return collection?.getField?.(CALENDAR_RECURRENCE_FIELD) ? CALENDAR_RECURRENCE_FIELD : undefined;
+};
+
 export const createCalendarRangeFilter = (
   fieldNames: {
     start?: string | string[];
     end?: string | string[];
   },
   range: CalendarVisibleRange,
+  options: CalendarRangeFilterOptions = {},
 ) => {
   const startField = normalizeCalendarFieldPath(fieldNames?.start);
   const endField = normalizeCalendarFieldPath(fieldNames?.end);
@@ -99,8 +116,25 @@ export const createCalendarRangeFilter = (
     },
   };
 
+  const recurring = options.recurrenceField
+    ? {
+        $and: [
+          {
+            [options.recurrenceField]: {
+              $notEmpty: true,
+            },
+          },
+          {
+            [startField]: {
+              $lte: endValue,
+            },
+          },
+        ],
+      }
+    : null;
+
   if (!endField || endField === startField) {
-    return startBetween;
+    return recurring ? { $or: [startBetween, recurring] } : startBetween;
   }
 
   return {
@@ -126,6 +160,7 @@ export const createCalendarRangeFilter = (
           },
         ],
       },
+      ...(recurring ? [recurring] : []),
     ],
   };
 };

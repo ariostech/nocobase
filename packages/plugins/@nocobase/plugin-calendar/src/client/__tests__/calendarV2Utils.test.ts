@@ -9,8 +9,10 @@
 
 import dayjs from 'dayjs';
 import {
+  CALENDAR_RECURRENCE_FIELD,
   createCalendarRangeFilter,
   formatDate,
+  getCalendarRecurrenceField,
   getCalendarVisibleRange,
   normalizeCalendarFieldPath,
   parseCalendarWeekStart,
@@ -94,6 +96,62 @@ describe('calendar v2 utils', () => {
           ],
         },
       ],
+    });
+  });
+
+  describe('recurring events', () => {
+    // November 2026 month view with Sunday as week start: 2026-11-01 to 2026-12-05
+    const range = getCalendarVisibleRange(new Date(2026, 10, 15, 12, 0, 0), 'month', 0);
+    const startValue = formatDate(dayjs(range.start));
+    const endValue = formatDate(dayjs(range.end));
+    const getOrBranches = (filter: unknown) => (filter as { $or: unknown[] }).$or;
+    const recurringBranch = {
+      $and: [{ cron: { $notEmpty: true } }, { startAt: { $lte: endValue } }],
+    };
+
+    it('should detect the recurrence field only when the collection has it', () => {
+      expect(getCalendarRecurrenceField({ getField: (name) => (name === 'cron' ? { name } : undefined) })).toBe(
+        CALENDAR_RECURRENCE_FIELD,
+      );
+      expect(getCalendarRecurrenceField({ getField: () => undefined })).toBeUndefined();
+      expect(getCalendarRecurrenceField(undefined)).toBeUndefined();
+      expect(getCalendarRecurrenceField({})).toBeUndefined();
+    });
+
+    it('should keep the original filters when no recurrence field is given', () => {
+      expect(createCalendarRangeFilter({ start: 'startAt' }, range, {})).toEqual({
+        startAt: { $gte: startValue, $lte: endValue },
+      });
+      expect(getOrBranches(createCalendarRangeFilter({ start: 'startAt', end: 'endAt' }, range))).toHaveLength(3);
+    });
+
+    it('should include recurring records that started before the range (start field only)', () => {
+      expect(createCalendarRangeFilter({ start: 'startAt' }, range, { recurrenceField: 'cron' })).toEqual({
+        $or: [{ startAt: { $gte: startValue, $lte: endValue } }, recurringBranch],
+      });
+    });
+
+    it('should include recurring records that started before the range (start and end fields)', () => {
+      const filter = createCalendarRangeFilter({ start: 'startAt', end: 'endAt' }, range, {
+        recurrenceField: 'cron',
+      });
+
+      expect(getOrBranches(filter)).toHaveLength(4);
+      expect(getOrBranches(filter)[3]).toEqual(recurringBranch);
+    });
+
+    it('should use the normalized start field path in the recurring branch', () => {
+      const filter = createCalendarRangeFilter({ start: ['event', 'startAt'], end: ['event', 'endAt'] }, range, {
+        recurrenceField: 'cron',
+      });
+
+      expect(getOrBranches(filter)[3]).toEqual({
+        $and: [{ cron: { $notEmpty: true } }, { 'event.startAt': { $lte: endValue } }],
+      });
+    });
+
+    it('should return null without a start field even when a recurrence field is given', () => {
+      expect(createCalendarRangeFilter({}, range, { recurrenceField: 'cron' })).toBeNull();
     });
   });
 });

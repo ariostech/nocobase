@@ -28,6 +28,7 @@ import {
   CALENDAR_RANGE_FILTER_GROUP,
   createCalendarRangeFilter,
   formatDate,
+  getCalendarRecurrenceField,
   getCalendarVisibleRange,
   normalizeCalendarFieldPath,
 } from '../utils';
@@ -420,7 +421,9 @@ export const CalendarBlock = observer((props: CalendarBlockProps) => {
       return;
     }
 
-    const rangeFilter = createCalendarRangeFilter(props.fieldNames, visibleRange);
+    const rangeFilter = createCalendarRangeFilter(props.fieldNames, visibleRange, {
+      recurrenceField: getCalendarRecurrenceField(props.collection),
+    });
     const nextKey = JSON.stringify({
       fieldNames: props.fieldNames,
       view,
@@ -443,7 +446,7 @@ export const CalendarBlock = observer((props: CalendarBlockProps) => {
 
     props.resource.setPage?.(1);
     void props.resource.refresh();
-  }, [props.fieldNames, props.rangeLoadEnabled, props.resource, view, visibleRange]);
+  }, [props.collection, props.fieldNames, props.rangeLoadEnabled, props.resource, view, visibleRange]);
 
   useEffect(() => {
     return () => {

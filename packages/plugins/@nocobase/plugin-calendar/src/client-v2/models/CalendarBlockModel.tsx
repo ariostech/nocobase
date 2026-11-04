@@ -32,6 +32,7 @@ import {
 import {
   CALENDAR_RANGE_FILTER_GROUP,
   createCalendarRangeFilter,
+  getCalendarRecurrenceField,
   getCalendarVisibleRange,
   normalizeCalendarFieldPath,
   parseCalendarWeekStart,
@@ -412,6 +413,7 @@ export class CalendarBlockModel extends CollectionBlockModel {
     const rangeFilter = createCalendarRangeFilter(
       this.getFieldNames(),
       getCalendarVisibleRange(new Date(), this.getDefaultView(), this.getWeekStart()),
+      { recurrenceField: getCalendarRecurrenceField(this.collection) },
     );
 
     if (rangeFilter) {
